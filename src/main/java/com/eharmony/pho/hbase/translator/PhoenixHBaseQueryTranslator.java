@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import com.google.common.base.Strings;
 import org.apache.commons.beanutils.PropertyUtils;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
@@ -85,13 +86,14 @@ public class PhoenixHBaseQueryTranslator extends AbstractQueryTranslator<String,
         Orderings orders = query.getOrder();
         Integer maxResults = query.getMaxResults();
         Class<T> entityClass = query.getEntityClass();
-
+        Joiner spaceJoiner = Joiner.on(" ");
         String projection = PROJECTION_ALL;
         if (CollectionUtils.isNotEmpty(fields)) {
             projection = Joiner.on(", ").join(
                     entityPropertiesResolver.resolveEntityMappingPropertyNames(fields, entityClass));
         }
-        Joiner spaceJoiner = Joiner.on(" ");
+        //Add query hint if available
+        projection = Strings.isNullOrEmpty(query.getQueryHint()) ? projection : spaceJoiner.join(query.getQueryHint(), PROJECTION_ALL);
         String queryString = spaceJoiner.join(new String[] { SELECT, projection, PhoenixHBaseClauses.FROM.symbol(),
                 entityResolver.resolve(entityClass) });
 
@@ -144,13 +146,15 @@ public class PhoenixHBaseQueryTranslator extends AbstractQueryTranslator<String,
         return join(resolveMappingName(fieldName), PhoenixHBaseOperator.GREATER_THAN_OR_EQUAL, value);
     }
     
-	public String insensitiveLike(String fieldName, Object value) {
+	@Override
+    public String insensitiveLike(String fieldName, Object value) {
 		return join(resolveMappingName(fieldName), 
 					PhoenixHBaseOperator.LIKE_CASE_INSENSITIVE, 
 					String.format(STRING_OPERAND_WITH_WILDCARD, value));
 	}
 
-	public String like(String fieldName, Object value) {
+	@Override
+    public String like(String fieldName, Object value) {
 		return join(resolveMappingName(fieldName), 
 					PhoenixHBaseOperator.LIKE, 
 					String.format(STRING_OPERAND_WITH_WILDCARD, value));	
@@ -178,12 +182,12 @@ public class PhoenixHBaseQueryTranslator extends AbstractQueryTranslator<String,
 
     @Override
     public String isNull(String fieldName) {
-        throw new UnsupportedOperationException("ISNULL operator is not supported in phoenix hbase library...");
+        return join(resolveMappingName(fieldName), PhoenixHBaseOperator.IS_NULL);
     }
 
     @Override
     public String notNull(String fieldName) {
-        throw new UnsupportedOperationException("NOTNULL operator is not supported in phoenix hbase library...");
+        return join(resolveMappingName(fieldName), PhoenixHBaseOperator.IS_NOT_NULL);
     }
 
     @Override
